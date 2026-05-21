@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import connectDB from './config/db.js';
+import mongoose from 'mongoose';
 
 // Import Route Handlers
 import authRoutes from './routes/authRoutes.js';
@@ -29,6 +30,23 @@ app.use(express.json());
 // API Base Root Check
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the Smart BioSecure Farm Portal API Server' });
+});
+
+// Database connection check middleware to fail fast on serverless environments
+app.use((req, res, next) => {
+  if (process.env.VERCEL || process.env.NETLIFY) {
+    if (!process.env.MONGO_URI) {
+      return res.status(503).json({
+        message: 'Database is not configured. Please add the MONGO_URI environment variable in your Netlify site settings (under Site configuration -> Environment variables) to connect to your live MongoDB database.'
+      });
+    }
+    if (mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) {
+      return res.status(503).json({
+        message: 'Database connection is not active. Please check your MONGO_URI value or database server availability.'
+      });
+    }
+  }
+  next();
 });
 
 // Map Routes

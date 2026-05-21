@@ -1,12 +1,14 @@
 import mongoose from 'mongoose';
 
 const connectDB = async () => {
+  // Disable Mongoose command buffering in serverless to prevent functions from hanging on disconnect
+  mongoose.set('bufferCommands', false);
   const uri = process.env.MONGO_URI;
 
   if (!uri) {
     console.warn('WARNING: MONGO_URI environment variable is not defined!');
-    if (process.env.VERCEL) {
-      console.error('Vercel serverless environment detected. You MUST configure MONGO_URI in your Vercel Project Settings -> Environment Variables.');
+    if (process.env.VERCEL || process.env.NETLIFY) {
+      console.error('Serverless environment detected. You MUST configure MONGO_URI in your Project Settings -> Environment Variables.');
       return;
     }
   }
@@ -22,8 +24,8 @@ const connectDB = async () => {
   } catch (error) {
     console.error(`Could not connect to standard database: ${error.message}`);
     
-    if (process.env.VERCEL) {
-      console.error('Vercel serverless environment detected. Cannot fallback to In-Memory MongoDB Server on Vercel. Please verify your MONGO_URI environment variable and database IP whitelist/firewall settings.');
+    if (process.env.VERCEL || process.env.NETLIFY) {
+      console.error('Serverless environment detected. Cannot fallback to In-Memory MongoDB Server. Please verify your MONGO_URI environment variable and database IP whitelist/firewall settings.');
       return;
     }
 
@@ -42,7 +44,7 @@ const connectDB = async () => {
       console.log('In-Memory Database Seeded successfully!');
     } catch (innerError) {
       console.error(`Failed to launch In-Memory MongoDB Server: ${innerError.message}`);
-      if (!process.env.VERCEL) {
+      if (!process.env.VERCEL && !process.env.NETLIFY) {
         process.exit(1);
       }
     }
