@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Chrome, UserPlus, Shield, User, X, Mail } from 'lucide-react';
+import { auth, googleProvider } from '../config/firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 const GoogleSignInButton = ({ defaultRole = 'farmer' }) => {
   const { loginWithGoogle } = useContext(AuthContext);
@@ -13,8 +15,44 @@ const GoogleSignInButton = ({ defaultRole = 'farmer' }) => {
   const [customRole, setCustomRole] = useState(defaultRole);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [selectedRole, setSelectedRole] = useState(defaultRole);
   const navigate = useNavigate();
 
+  // Real Firebase Google Sign-In
+  const handleFirebaseGoogleSignIn = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = result.user;
+
+      // Send the real Google user data to our backend
+      const data = await loginWithGoogle({
+        email: firebaseUser.email,
+        name: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+        avatar: firebaseUser.photoURL || `https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(firebaseUser.displayName || 'user')}`,
+        role: selectedRole,
+      });
+
+      setShowModal(false);
+      if (data.role === 'admin') {
+        navigate('/admin-dashboard');
+      } else {
+        navigate('/farmer-dashboard');
+      }
+    } catch (err) {
+      // Don't show error if user simply closed the popup
+      if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        setLoading(false);
+        return;
+      }
+      setErrorMsg(err.message || 'Failed to authenticate with Google');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mock account select (kept for demo/presentation fallback)
   const mockGoogleAccounts = [
     {
       name: 'Dr. Sarah Jenkins',
@@ -92,7 +130,7 @@ const GoogleSignInButton = ({ defaultRole = 'farmer' }) => {
 
   return (
     <>
-      {/* Official styled Google button */}
+      {/* Official styled Google button - triggers real Firebase auth */}
       <button
         type="button"
         onClick={() => {
@@ -145,9 +183,57 @@ const GoogleSignInButton = ({ defaultRole = 'farmer' }) => {
                   <p className="text-sm text-slate-400">Connecting Google API...</p>
                 </div>
               ) : !useCustomAccount ? (
-                /* Select seeded Account list */
+                /* Main Sign-in panel */
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Choose an account</p>
+                  {/* Role selection before Google sign-in */}
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Select your role</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('farmer')}
+                        className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                          selectedRole === 'farmer'
+                            ? 'bg-emerald-950/30 border-emerald-500 text-emerald-400'
+                            : 'bg-slate-800/40 border-slate-700 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        <User className="w-4 h-4" />
+                        <span>Farmer</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRole('admin')}
+                        className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+                          selectedRole === 'admin'
+                            ? 'bg-emerald-950/30 border-emerald-500 text-emerald-400'
+                            : 'bg-slate-800/40 border-slate-700 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Shield className="w-4 h-4" />
+                        <span>Admin</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Real Google Sign-In Button */}
+                  <button
+                    onClick={handleFirebaseGoogleSignIn}
+                    className="w-full flex items-center justify-center gap-3 p-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-950/50 transition-all text-sm"
+                  >
+                    <Chrome className="w-5 h-5" />
+                    <span>Sign in with Google Account</span>
+                  </button>
+
+                  {/* Divider */}
+                  <div className="flex items-center gap-3 py-2">
+                    <span className="flex-1 h-px bg-slate-800"></span>
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider">or demo accounts</span>
+                    <span className="flex-1 h-px bg-slate-800"></span>
+                  </div>
+
+                  {/* Demo/Presentation accounts */}
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Quick demo access</p>
                   
                   {mockGoogleAccounts.map((acc, index) => (
                     <button
@@ -176,13 +262,13 @@ const GoogleSignInButton = ({ defaultRole = 'farmer' }) => {
                       <UserPlus className="w-5 h-5 text-emerald-400" />
                     </div>
                     <div>
-                      <p className="font-semibold text-sm">Use another Google account</p>
-                      <p className="text-xs text-slate-500">Log in or register with any Gmail ID</p>
+                      <p className="font-semibold text-sm">Use another account</p>
+                      <p className="text-xs text-slate-500">Log in or register with any email</p>
                     </div>
                   </button>
                 </div>
               ) : (
-                /* Custom Google Account registration or Login Form */
+                /* Custom Account registration or Login Form */
                 <form onSubmit={handleCustomSubmit} className="space-y-4">
                   <div className="flex items-center gap-2 mb-2">
                     <button
